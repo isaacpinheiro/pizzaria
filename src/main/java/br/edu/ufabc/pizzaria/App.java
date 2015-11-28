@@ -68,19 +68,23 @@ public class App implements Watcher {
 		// Adiciona o processo (pedido) na fila.
 		boolean produce(Pedido pedido) throws KeeperException, InterruptedException {
 
+			byte b[] = null;
+
 			try{
 
 				// Converte o objeto Pedido em array de bytes
-				ByteArrayOutputStream b = new ByteArrayOutputStream();
-				ObjectOutputStream out = new ObjectOutputStream(b);
-				out.writeObject(pedido);
-				out.close();
-
-				zk.create(root+"/pedido", b.toByteArray(), Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+				ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+				ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+				objectOutputStream.writeObject(pedido);
+				objectOutputStream.close();
+				byteArrayOutputStream.close();
+				b = byteArrayOutputStream.toByteArray();
 
 			}catch(IOException e){
 				e.printStackTrace();
 			}
+
+			zk.create(root+"/pedido", b, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
 
 			return true;
 
