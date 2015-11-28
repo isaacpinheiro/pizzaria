@@ -1,6 +1,10 @@
 package br.edu.ufabc.pizzaria;
 
-public class Produto {
+import java.io.Serializable;
+
+public class Produto implements Serializable {
+
+	public static final long serialVersionUID = 1L;
 
 	private int id;
 	private String nome;

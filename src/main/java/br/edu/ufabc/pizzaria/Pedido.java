@@ -1,8 +1,11 @@
 package br.edu.ufabc.pizzaria;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class Pedido {
+public class Pedido implements Serializable {
+
+	public static final long serialVersionUID = 1L;
 
 	private int id;
 	private Cliente cliente;

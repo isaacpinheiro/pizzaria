@@ -1,6 +1,10 @@
 package br.edu.ufabc.pizzaria;
 
-public class Endereco {
+import java.io.Serializable;
+
+public class Endereco implements Serializable {
+
+	public static final long serialVersionUID = 1L;
 
 	private String rua;
 	private String numero;
