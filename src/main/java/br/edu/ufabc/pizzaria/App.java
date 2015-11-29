@@ -154,7 +154,7 @@ public class App implements Watcher {
 
 		cardapio[7] = new Produto();
 		cardapio[7].setId(8);
-		cardapio[7].setNome("Sudo Del Valle");
+		cardapio[7].setNome("Suco Del Valle");
 		cardapio[7].setDescricao("Suco de frutas de 350ml");
 		cardapio[7].setPreco(3.65);
 
