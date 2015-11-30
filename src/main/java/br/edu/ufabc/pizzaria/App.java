@@ -6,10 +6,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
 import java.io.ObjectInputStream;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Random;
+import java.util.ArrayList;
+import java.util.Scanner;
 
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -23,10 +22,11 @@ public class App implements Watcher {
 
 	static ZooKeeper zk = null;
 	static Integer mutex;
+	static String host = "127.0.0.1";
+	static int clienteId = 1;
+	static int pedidoId = 1;
 
 	String root;
-	String host = "127.0.0.1";
-	int clienteId = 0;
 
 	App(String address){
 		try{
@@ -55,7 +55,7 @@ public class App implements Watcher {
 			// Cria o znode raíz caso não tenha.
 			if(zk != null){
 				try{
-					zk.create(root, new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+					zk.create("/"+root, new byte[0], Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
 				}catch(KeeperException e){
 					System.out.println("Keeper exception when instantiating queue: " + e.toString());
 				}catch(InterruptedException e){
@@ -84,7 +84,7 @@ public class App implements Watcher {
 				e.printStackTrace();
 			}
 
-			zk.create(root+"/pedido", b, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
+			zk.create("/"+root+"/pedido", b, Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
 
 			return true;
 
@@ -93,20 +93,60 @@ public class App implements Watcher {
 		// Remove o processo (pedido) da fila, calcular o preço total e exibe os dados do pedido.
 		Pedido consume() throws KeeperException, InterruptedException {
 
-			Pedido pedido = new Pedido();
+			Pedido pedido = null;
+			Stat stat = null;
 
-			// TODO
+			while(true){
 
-			// ByteArrayInputStream ...
-			// ObjectInputStream ...
+				synchronized(mutex){
 
-			return pedido;
+					List<String> list = zk.getChildren("/"+root, true);
+
+					if(list.size() == 0){
+						System.out.println("Não temos pedidos no momento.");
+						mutex.wait();
+					}else{
+
+						Integer min = new Integer(list.get(0).substring(7));
+						String minString = list.get(0);
+						for(String s : list){
+							Integer tempValue = new Integer(s.substring(7));
+							if(tempValue < min){
+								min = tempValue;
+								minString = s;
+							}
+						}
+
+						byte b[] = zk.getData("/"+root+"/"+minString, false, stat);
+						zk.delete("/"+root+"/"+minString, 0);
+
+						try{
+
+							// Converte o array de bytes no object Pedido.
+							ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(b);
+							ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
+							pedido = (Pedido) objectInputStream.readObject();
+							objectInputStream.close();
+							byteArrayInputStream.close();
+							return pedido;
+
+						}catch(IOException e){
+							e.printStackTrace();
+						}catch(ClassNotFoundException e){
+							e.printStackTrace();
+						}
+
+					}
+
+				}
+
+			}
 
 		}
 
 	}
 
-	public static void main(String args[]){
+	public static void main(String args[]) throws Exception {
 
 		Produto cardapio[] = new Produto[10];
 
@@ -170,11 +210,136 @@ public class App implements Watcher {
 		cardapio[9].setDescricao("Cerveja de 1 Litro");
 		cardapio[9].setPreco(7.00);
 
-		System.out.println("Pizzaria");
+		Queue queue = new Queue(host, "pizzaria");
+		Scanner in = new Scanner(System.in);
+		int op  = 0;
 
-		for(int i=0;i<10;i++){
-			System.out.println(cardapio[i].getNome());
+		while(op != 3){
+
+			System.out.printf("\033[2J");
+			System.out.println("**************************************************************");
+			System.out.println("*                                                            *");
+			System.out.println("*                         Pizzaria                           *");
+			System.out.println("*                                                            *");
+			System.out.println("*      1) Cadastrar Pedido  2) Entregar Pedido  3) Sair      *");
+			System.out.println("*                                                            *");
+			System.out.println("**************************************************************");
+			System.out.print("///:> ");
+			op = Integer.parseInt(in.nextLine());
+
+			if(op == 1){
+
+				System.out.printf("\033[2J");
+				System.out.println("******* Informações do Cliente \n");
+
+				Cliente cliente = new Cliente();
+				cliente.setId(clienteId);
+
+				System.out.print("Nome: ");
+				cliente.setNome(in.nextLine());
+
+				System.out.print("CPF: ");
+				cliente.setCpf(in.nextLine());
+
+				System.out.print("Telefone: ");
+				cliente.setTelefone(in.nextLine());
+
+				System.out.println("******* Endereço do Cliente \n");
+
+				Endereco endereco = new Endereco();
+
+				System.out.print("Rua: ");
+				endereco.setRua(in.nextLine());
+
+				System.out.print("Número: ");
+				endereco.setNumero(in.nextLine());
+
+				System.out.print("CEP: ");
+				endereco.setCep(in.nextLine());
+
+				System.out.print("Bairro: ");
+				endereco.setBairro(in.nextLine());
+
+				System.out.print("Complemento: ");
+				endereco.setComplemento(in.nextLine());
+				cliente.setEndereco(endereco);
+
+				Pedido pedido = new Pedido();
+				pedido.setId(pedidoId);
+				pedido.setCliente(cliente);
+				pedido.setProdutos(new ArrayList<Produto>());
+				pedido.setPrecoTotal(0);
+
+				String op2 = "";
+
+				while(!op2.equals("f") && !op2.equals("F")){
+
+					System.out.printf("\033[2J");
+					System.out.println("******* Pedido \n");
+					System.out.println("Informe o número do produto á ser adicionado no pedido: ");
+
+					for(int i=0;i<10;i++){
+						System.out.println("\tID: "+cardapio[i].getId()+" Nome: "+cardapio[i].getNome()
+							+" Descrição: "+cardapio[i].getDescricao()+" Preço: "+cardapio[i].getPreco());
+					}
+
+					System.out.println("Digite (F) para finalizar o pedido.");
+					System.out.print("///:> ");
+					op2 = in.nextLine();
+
+					if(!op2.equals("f") && !op2.equals("F")){
+						pedido.getProdutos().add(cardapio[Integer.parseInt(op2)-1]);
+					}
+
+				}
+
+				System.out.printf("\033[2J");
+				System.out.print("Deseja efetivar esta operação? (S) ou (N): ");
+
+				String op3 = in.nextLine();
+
+				if(op3.equals("s") || op3.equals("S")){
+					clienteId++;
+					pedidoId++;
+					queue.produce(pedido);
+				}
+
+			}else if(op == 2){
+
+				System.out.printf("\033[2J");
+				System.out.println("******* Pedido Entregue \n\n");
+
+				Pedido pedido = queue.consume();
+
+				System.out.println("ID do Pedido: "+pedido.getId());
+				System.out.println("Nº Cliente: "+pedido.getCliente().getId());
+				System.out.println("Nome: "+pedido.getCliente().getNome());
+				System.out.println("CPF: "+pedido.getCliente().getCpf());
+				System.out.println("Telefone: "+pedido.getCliente().getTelefone());
+				System.out.println("Rua: "+pedido.getCliente().getEndereco().getRua());
+				System.out.println("Número: "+pedido.getCliente().getEndereco().getNumero());
+				System.out.println("CEP: "+pedido.getCliente().getEndereco().getCep());
+				System.out.println("Bairro: "+pedido.getCliente().getEndereco().getBairro());
+				System.out.println("Complemento: "+pedido.getCliente().getEndereco().getComplemento());
+				System.out.println("Produtos: ");
+
+				for(Produto p : pedido.getProdutos()){
+
+					System.out.println("\tID: "+p.getId()+" Nome: "+p.getNome()
+						+" Descrição: "+p.getDescricao()+" Preço: "+p.getPreco());
+
+					pedido.setPrecoTotal(pedido.getPrecoTotal() + p.getPreco());
+
+				}
+
+				System.out.println("Preço Total: "+pedido.getPrecoTotal());
+				in.nextLine();
+
+			}
+
 		}
+
+		System.out.println("Sair");
 
 	}
 
