@@ -51,7 +51,6 @@ public class App implements Watcher {
 			super(address);
 			this.root = name;
 
-			// Barrier
 			// Cria o znode raíz caso não tenha.
 			if(zk != null){
 				try{
